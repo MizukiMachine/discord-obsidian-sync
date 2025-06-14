@@ -28,6 +28,9 @@ const drive = google.drive({ version: 'v3', auth });
 const TARGET_CHANNEL_ID = process.env.DISCORD_CHANNEL_ID;
 const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
+// 処理済みメッセージIDを管理するSet
+const processedMessages = new Set();
+
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
 });
@@ -37,9 +40,18 @@ client.on('messageCreate', async (message) => {
     if (TARGET_CHANNEL_ID && message.channel.id !== TARGET_CHANNEL_ID) return;
     if (message.content.length < 50) return;
     
-    // 重複処理防止のためのフラグ
-    if (message.processed) return;
-    message.processed = true;
+    // 重複処理防止 - メッセージIDで管理
+    if (processedMessages.has(message.id)) {
+        console.log(`Already processed message: ${message.id}`);
+        return;
+    }
+    processedMessages.add(message.id);
+    
+    // Setのサイズを制限（メモリリーク防止）
+    if (processedMessages.size > 1000) {
+        const firstEntry = processedMessages.values().next().value;
+        processedMessages.delete(firstEntry);
+    }
     
     try {
         console.log(`Processing message: ${message.content.substring(0, 100)}...`);
@@ -63,6 +75,8 @@ client.on('messageCreate', async (message) => {
     } catch (error) {
         console.error('Error processing message:', error);
         await message.react('❌');
+        // エラー時はSetからIDを削除（再試行可能にする）
+        processedMessages.delete(message.id);
     }
 });
 
@@ -74,36 +88,40 @@ async function formatMessageWithAI(content, japanTime) {
                 role: "system",
                 content: `あなたはDiscordメッセージを整理して構造化されたObsidianメモに変換するアシスタントです。
 
+【重要】要約ではなく、元の情報を保持したまま整理・整形することが目的です。
+
 以下の形式で厳密にメモを作成してください：
 
 1. タイトル（# で始める、ファイル名と同じ形式）
 2. 空行
-3. 作成日時（YYYY年MM月DD日HH時MM分作成）
+3. 作成日時（現在の日本時間を正確に記載）
 4. 空行
-5. 本文（箇条書き形式、「である」調、情報を保持して整理）
+5. 本文（箇条書き形式、「である」調、元の情報をすべて保持）
 6. 空行
 7. タグ（#タグ1 #タグ2 #タグ3 #タグ4 の形式で4つ前後）
+
+本文の作成ルール：
+- 元の投稿の内容を一文ずつ箇条書きに変換
+- 情報の削除や省略は一切行わない
+- 「ですます」→「である」調に変換
+- 誤字脱字の修正のみ行う
+- 明らかな重複表現のみ削除
+- 文章の意味や詳細をすべて保持
 
 サンプル形式：
 # YYYY-MM-DD_HH-MM-SS_トピック名
 
 YYYY年MM月DD日HH時MM分作成
 
-- [ポイント1の詳細内容]である
-- [ポイント2の詳細内容]である
-- [ポイント3の詳細内容]である
-- [追加の重要な情報]である
-- [結論や感想]である
+- [元の文章の内容1]である
+- [元の文章の内容2]である
+- [元の文章の内容3]である
+- [元の文章の内容4]である
+- [元の文章の内容5]である
+- [元の文章の内容6]である
+- [元の文章の内容7]である
 
-#タグ1 #タグ2 #タグ3 #タグ4
-
-重要な指示：
-- 本文は箇条書き（-）で記述
-- 情報を削らず、整理・整形・誤字修正を重視
-- 「ですます」調ではなく「である」調を使用
-- 明らかな重複は削除するが、有用な情報は保持
-- 元の内容の意図と詳細を可能な限り保持
-- 読みやすさと情報の完全性を両立`
+#タグ1 #タグ2 #タグ3 #タグ4`
             },
             {
                 role: "user",
