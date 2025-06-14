@@ -47,6 +47,10 @@ client.on('messageCreate', async (message) => {
         
         await saveToGoogleDrive(finalContent, filename);
         
+        // 詳細な応答メッセージを送信
+        const responseMessage = createResponseMessage(formattedContent, filename, relatedNotes);
+        await message.reply(responseMessage);
+        
         await message.react('✅');
         console.log(`Saved note: ${filename}`);
     } catch (error) {
@@ -228,6 +232,45 @@ async function saveToGoogleDrive(content, filename) {
         console.error('Error saving to Google Drive:', error);
         throw error;
     }
+}
+
+function createResponseMessage(formattedContent, filename, relatedNotes) {
+    // フォーマットされたコンテンツからタイトル、本文、タグを抽出
+    const lines = formattedContent.split('\n').filter(line => line.trim());
+    
+    let title = '';
+    let content = '';
+    let tags = '';
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line.startsWith('# ')) {
+            title = line.substring(2); // "# " を除去
+        } else if (line.includes('年') && line.includes('月') && line.includes('日')) {
+            // 日付行をスキップ
+            continue;
+        } else if (line.startsWith('#') && line.includes(' #')) {
+            tags = line;
+        } else if (!line.startsWith('#') && !line.includes('年') && !line.includes('月') && line.length > 10) {
+            content = line;
+        }
+    }
+    
+    // 関連タイトル情報
+    let relatedInfo = '';
+    if (relatedNotes.length > 0) {
+        const relatedTitles = relatedNotes.map(note => note.filename).join(', ');
+        relatedInfo = `\n* **関連メモ**: ${relatedTitles}`;
+    }
+    
+    const responseMessage = `**Bot処理完了！**
+
+* **タイトル**: ${title}
+* **コンテンツ**: ${content}
+* **タグ**: ${tags}${relatedInfo}
+* **保存完了**: テキストmemoを \`${filename}\` として保存しました！（Obsidian連携フォルダ）`;
+
+    return responseMessage;
 }
 
 client.login(process.env.DISCORD_TOKEN);
