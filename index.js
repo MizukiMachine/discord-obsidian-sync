@@ -61,7 +61,7 @@ client.on('messageCreate', async (message) => {
 
 async function formatMessageWithAI(content) {
     const response = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4o-mini",
         messages: [
             {
                 role: "system",
@@ -100,7 +100,7 @@ YYYY年MM月DD日HH時MM分作成
 
 async function generateFilename(content) {
     const response = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4o-mini",
         messages: [
             {
                 role: "system",
@@ -174,7 +174,7 @@ async function findRelatedNotes(content) {
 async function checkSimilarity(content1, content2) {
     try {
         const response = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
+            model: "gpt-4o-mini",
             messages: [
                 {
                     role: "system",
@@ -235,26 +235,46 @@ async function saveToGoogleDrive(content, filename) {
 }
 
 function createResponseMessage(formattedContent, filename, relatedNotes) {
+    console.log('DEBUG - formattedContent:', formattedContent); // デバッグ用
+    
     // フォーマットされたコンテンツからタイトル、本文、タグを抽出
-    const lines = formattedContent.split('\n').filter(line => line.trim());
+    const lines = formattedContent.split('\n').map(line => line.trim()).filter(line => line);
     
     let title = '';
     let content = '';
     let tags = '';
+    let contentLines = [];
+    let isContentSection = false;
     
     for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
+        const line = lines[i];
+        
         if (line.startsWith('# ')) {
             title = line.substring(2); // "# " を除去
-        } else if (line.includes('年') && line.includes('月') && line.includes('日')) {
-            // 日付行をスキップ
+            isContentSection = false;
+        } else if (line.includes('年') && line.includes('月') && line.includes('日') && line.includes('作成')) {
+            // 日付行の後からコンテンツ開始
+            isContentSection = true;
             continue;
         } else if (line.startsWith('#') && line.includes(' #')) {
+            // タグ行
             tags = line;
-        } else if (!line.startsWith('#') && !line.includes('年') && !line.includes('月') && line.length > 10) {
-            content = line;
+            isContentSection = false;
+        } else if (line.startsWith('[[') && line.endsWith(']]')) {
+            // 関連リンク行、コンテンツ終了
+            isContentSection = false;
+        } else if (isContentSection && line.length > 0) {
+            // コンテンツ行
+            contentLines.push(line);
         }
     }
+    
+    // コンテンツを結合（最初の段落のみ使用）
+    content = contentLines.join(' ').substring(0, 200) + (contentLines.join(' ').length > 200 ? '...' : '');
+    
+    console.log('DEBUG - extracted title:', title);
+    console.log('DEBUG - extracted content:', content);
+    console.log('DEBUG - extracted tags:', tags);
     
     // 関連タイトル情報
     let relatedInfo = '';
