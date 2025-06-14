@@ -37,11 +37,18 @@ client.on('messageCreate', async (message) => {
     if (TARGET_CHANNEL_ID && message.channel.id !== TARGET_CHANNEL_ID) return;
     if (message.content.length < 50) return;
     
+    // 重複処理防止のためのフラグ
+    if (message.processed) return;
+    message.processed = true;
+    
     try {
         console.log(`Processing message: ${message.content.substring(0, 100)}...`);
         
-        const formattedContent = await formatMessageWithAI(message.content);
-        const filename = await generateFilename(formattedContent);
+        // 日本時間を先に生成
+        const japanTime = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Tokyo"}));
+        
+        const formattedContent = await formatMessageWithAI(message.content, japanTime);
+        const filename = await generateFilename(formattedContent, japanTime);
         const relatedNotes = await findRelatedNotes(formattedContent);
         const finalContent = addRelatedLinks(formattedContent, relatedNotes);
         
@@ -59,7 +66,7 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-async function formatMessageWithAI(content) {
+async function formatMessageWithAI(content, japanTime) {
     const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -100,7 +107,9 @@ YYYY年MM月DD日HH時MM分作成
             },
             {
                 role: "user",
-                content: content
+                content: `現在の日本時間: ${japanTime.getFullYear()}年${String(japanTime.getMonth() + 1).padStart(2, '0')}月${String(japanTime.getDate()).padStart(2, '0')}日${String(japanTime.getHours()).padStart(2, '0')}時${String(japanTime.getMinutes()).padStart(2, '0')}分
+                
+投稿内容: ${content}`
             }
         ],
         max_tokens: 800,
@@ -110,7 +119,7 @@ YYYY年MM月DD日HH時MM分作成
     return response.choices[0].message.content;
 }
 
-async function generateFilename(content) {
+async function generateFilename(content, japanTime) {
     const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -131,10 +140,7 @@ async function generateFilename(content) {
         .replace(/[<>:"/\\|?*]/g, '')
         .trim();
     
-    // 日本時間に変換
-    const now = new Date();
-    const japanTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Tokyo"}));
-    
+    // 渡された日本時間を使用
     const year = japanTime.getFullYear();
     const month = String(japanTime.getMonth() + 1).padStart(2, '0');
     const day = String(japanTime.getDate()).padStart(2, '0');
