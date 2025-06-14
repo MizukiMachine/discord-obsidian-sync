@@ -73,7 +73,7 @@ async function formatMessageWithAI(content) {
 2. 空行
 3. 作成日時（YYYY年MM月DD日HH時MM分作成）
 4. 空行
-5. 本文（要約された内容、1段落、200-300文字程度）
+5. 本文（箇条書き形式、「である」調、情報を保持して整理）
 6. 空行
 7. タグ（#タグ1 #タグ2 #タグ3 #タグ4 の形式で4つ前後）
 
@@ -82,9 +82,21 @@ async function formatMessageWithAI(content) {
 
 YYYY年MM月DD日HH時MM分作成
 
-[要約された本文内容をここに記載...]
+- [ポイント1の詳細内容]である
+- [ポイント2の詳細内容]である
+- [ポイント3の詳細内容]である
+- [追加の重要な情報]である
+- [結論や感想]である
 
-#タグ1 #タグ2 #タグ3 #タグ4`
+#タグ1 #タグ2 #タグ3 #タグ4
+
+重要な指示：
+- 本文は箇条書き（-）で記述
+- 情報を削らず、整理・整形・誤字修正を重視
+- 「ですます」調ではなく「である」調を使用
+- 明らかな重複は削除するが、有用な情報は保持
+- 元の内容の意図と詳細を可能な限り保持
+- 読みやすさと情報の完全性を両立`
             },
             {
                 role: "user",
@@ -264,13 +276,31 @@ function createResponseMessage(formattedContent, filename, relatedNotes) {
             // 関連リンク行、コンテンツ終了
             isContentSection = false;
         } else if (isContentSection && line.length > 0) {
-            // コンテンツ行
+            // コンテンツ行（箇条書きを含む）
             contentLines.push(line);
         }
     }
     
-    // コンテンツを結合（最初の段落のみ使用）
-    content = contentLines.join(' ').substring(0, 200) + (contentLines.join(' ').length > 200 ? '...' : '');
+    // コンテンツを結合（箇条書き形式を保持、情報を削らない）
+    if (contentLines.length > 0) {
+        // 箇条書きの場合は改行を保持、全ての項目を表示
+        if (contentLines[0].startsWith('-')) {
+            content = contentLines.join('\n'); // 全ての箇条書き項目を表示
+        } else {
+            content = contentLines.join(' '); // 通常の文章は全て表示
+        }
+        
+        // Discord表示用に長すぎる場合のみ制限
+        if (content.length > 300) {
+            if (contentLines[0].startsWith('-')) {
+                // 箇条書きの場合は最初の7項目まで表示
+                content = contentLines.slice(0, 7).join('\n');
+                if (contentLines.length > 7) content += '\n...';
+            } else {
+                content = content.substring(0, 300) + '...';
+            }
+        }
+    }
     
     console.log('DEBUG - extracted title:', title);
     console.log('DEBUG - extracted content:', content);
