@@ -1,7 +1,6 @@
 # Discord → Obsidian メモBot
 
-Discordでだらだら書いた投稿が、気づいたらちゃんとしたメモになってObsidianに保存されてる。
-そんなBotです。
+Discordでだらだら書いた投稿が、ちゃんとしたメモになってObsidianに保存
 
 ## 何をしてくれるの？
 - Discord投稿を監視
@@ -20,14 +19,7 @@ render.comで24時間動かしっぱなしにできます。
 ## セットアップ
 
 ### 1. 環境変数の設定
-```
-DISCORD_TOKEN=あなたのDiscord Botトークン
-OPENAI_API_KEY=あなたのOpenAI APIキー
-DISCORD_CHANNEL_ID=監視したいDiscordチャンネルのID
-GITHUB_TOKEN=GitHubのPersonal Access Token
-GITHUB_OWNER=GitHubのユーザー名
-GITHUB_REPO=Obsidianメモを保存するリポジトリ名
-```
+
 
 ### 2. render.comでのデプロイ
 1. このリポジトリをGitHubにプッシュ
