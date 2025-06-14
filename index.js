@@ -78,7 +78,7 @@ async function formatMessageWithAI(content) {
 7. タグ（#タグ1 #タグ2 #タグ3 #タグ4 の形式で4つ前後）
 
 サンプル形式：
-# YYYYMMDD_HHMMSS_トピック名
+# YYYY-MM-DD_HH-MM-SS_トピック名
 
 YYYY年MM月DD日HH時MM分作成
 
@@ -131,15 +131,18 @@ async function generateFilename(content) {
         .replace(/[<>:"/\\|?*]/g, '')
         .trim();
     
+    // 日本時間に変換
     const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hour = String(now.getHours()).padStart(2, '0');
-    const minute = String(now.getMinutes()).padStart(2, '0');
-    const second = String(now.getSeconds()).padStart(2, '0');
+    const japanTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Tokyo"}));
     
-    const timestamp = `${year}${month}${day}_${hour}${minute}${second}`;
+    const year = japanTime.getFullYear();
+    const month = String(japanTime.getMonth() + 1).padStart(2, '0');
+    const day = String(japanTime.getDate()).padStart(2, '0');
+    const hour = String(japanTime.getHours()).padStart(2, '0');
+    const minute = String(japanTime.getMinutes()).padStart(2, '0');
+    const second = String(japanTime.getSeconds()).padStart(2, '0');
+    
+    const timestamp = `${year}-${month}-${day}_${hour}-${minute}-${second}`;
     
     return `${timestamp}_${topic}.md`;
 }
