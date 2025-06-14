@@ -1,7 +1,7 @@
 {
   "name": "discord-obsidian-bot",
   "version": "1.0.0",
-  "description": "Discord bot that formats messages with AI and saves to Obsidian via GitHub",
+  "description": "",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -10,12 +10,12 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "@octokit/rest": "^22.0.0",
     "discord.js": "^14.19.3",
     "dotenv": "^16.5.0",
     "fs-extra": "^11.3.0",
+    "googleapis": "^150.0.1",
     "openai": "^5.3.0"
   }
 }

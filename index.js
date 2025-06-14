@@ -3,7 +3,7 @@ const { Client, GatewayIntentBits } = require('discord.js');
 const OpenAI = require('openai');
 const fs = require('fs-extra');
 const path = require('path');
-const { Octokit } = require('@octokit/rest');
+const { google } = require('googleapis');
 
 const client = new Client({
     intents: [
@@ -17,14 +17,16 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
-const octokit = new Octokit({
-    auth: process.env.GITHUB_TOKEN,
+// Google Drive API設定
+const auth = new google.auth.GoogleAuth({
+    credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY),
+    scopes: ['https://www.googleapis.com/auth/drive.file'],
 });
 
+const drive = google.drive({ version: 'v3', auth });
+
 const TARGET_CHANNEL_ID = process.env.DISCORD_CHANNEL_ID;
-const GITHUB_OWNER = process.env.GITHUB_OWNER;
-const GITHUB_REPO = process.env.GITHUB_REPO;
-const OBSIDIAN_FOLDER = '04_fromdicord_memo';
+const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -43,7 +45,7 @@ client.on('messageCreate', async (message) => {
         const relatedNotes = await findRelatedNotes(formattedContent);
         const finalContent = addRelatedLinks(formattedContent, relatedNotes);
         
-        await saveToGitHub(finalContent, filename);
+        await saveToGoogleDrive(finalContent, filename);
         
         await message.react('✅');
         console.log(`Saved note: ${filename}`);
@@ -128,27 +130,23 @@ async function generateFilename(content) {
 
 async function findRelatedNotes(content) {
     try {
-        const { data: files } = await octokit.rest.repos.getContent({
-            owner: GITHUB_OWNER,
-            repo: GITHUB_REPO,
-            path: OBSIDIAN_FOLDER,
+        const response = await drive.files.list({
+            q: `'${GOOGLE_DRIVE_FOLDER_ID}' in parents and name contains '.md'`,
+            orderBy: 'name desc',
+            pageSize: 10,
         });
         
+        const files = response.data.files || [];
         const relatedNotes = [];
-        const recentFiles = files
-            .filter(file => file.name.endsWith('.md'))
-            .sort((a, b) => b.name.localeCompare(a.name))
-            .slice(0, 10);
         
-        for (const file of recentFiles) {
+        for (const file of files) {
             try {
-                const { data: fileData } = await octokit.rest.repos.getContent({
-                    owner: GITHUB_OWNER,
-                    repo: GITHUB_REPO,
-                    path: file.path,
+                const fileResponse = await drive.files.get({
+                    fileId: file.id,
+                    alt: 'media',
                 });
                 
-                const fileContent = Buffer.from(fileData.content, 'base64').toString('utf8');
+                const fileContent = fileResponse.data;
                 const similarity = await checkSimilarity(content, fileContent);
                 
                 if (similarity > 0.3) {
@@ -164,7 +162,7 @@ async function findRelatedNotes(content) {
         
         return relatedNotes.sort((a, b) => b.similarity - a.similarity).slice(0, 3);
     } catch (error) {
-        console.log('No existing files found or error accessing repository:', error.message);
+        console.log('No existing files found or error accessing Google Drive:', error.message);
         return [];
     }
 }
@@ -208,21 +206,26 @@ function addRelatedLinks(content, relatedNotes) {
     return content + linkSection;
 }
 
-async function saveToGitHub(content, filename) {
-    const filePath = `${OBSIDIAN_FOLDER}/${filename}`;
-    
+async function saveToGoogleDrive(content, filename) {
     try {
-        await octokit.rest.repos.createOrUpdateFileContents({
-            owner: GITHUB_OWNER,
-            repo: GITHUB_REPO,
-            path: filePath,
-            message: `Add Discord memo: ${filename}`,
-            content: Buffer.from(content, 'utf8').toString('base64'),
+        const fileMetadata = {
+            name: filename,
+            parents: [GOOGLE_DRIVE_FOLDER_ID],
+        };
+        
+        const media = {
+            mimeType: 'text/markdown',
+            body: content,
+        };
+        
+        const response = await drive.files.create({
+            requestBody: fileMetadata,
+            media: media,
         });
         
-        console.log(`File saved to GitHub: ${filePath}`);
+        console.log(`File saved to Google Drive: ${filename} (ID: ${response.data.id})`);
     } catch (error) {
-        console.error('Error saving to GitHub:', error);
+        console.error('Error saving to Google Drive:', error);
         throw error;
     }
 }
