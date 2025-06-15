@@ -35,6 +35,10 @@ const processedMessages = new Set();
 
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
+    console.log(`DEBUG: Environment variables check:`);
+    console.log(`- GOOGLE_DRIVE_FOLDER_ID: ${GOOGLE_DRIVE_FOLDER_ID ? 'SET' : 'NOT SET'}`);
+    console.log(`- GOOGLE_DRIVE_URL_FOLDER_ID: ${GOOGLE_DRIVE_URL_FOLDER_ID ? 'SET' : 'NOT SET'}`);
+    console.log(`- DISCORD_CHANNEL_ID: ${TARGET_CHANNEL_ID ? 'SET' : 'NOT SET'}`);
 });
 
 // URL判定関数
@@ -107,20 +111,32 @@ async function processNormalMessage(message, japanTime) {
 // URL メッセージ処理
 async function processURLMessage(message, japanTime) {
     const url = message.content.trim();
+    console.log(`DEBUG: Processing URL message: ${url}`);
     
     try {
+        console.log(`DEBUG: Step 1 - Summarizing URL...`);
         // URL先のページ内容を取得・要約
         const urlSummary = await summarizeURL(url, japanTime);
-        const topicName = await generateURLTopicName(urlSummary);
-        const filename = generateFilename(topicName, japanTime);
+        console.log(`DEBUG: Step 2 - URL summary generated (length: ${urlSummary.length})`);
         
+        console.log(`DEBUG: Step 3 - Generating topic name...`);
+        const topicName = await generateURLTopicName(urlSummary);
+        console.log(`DEBUG: Step 4 - Topic name generated: ${topicName}`);
+        
+        console.log(`DEBUG: Step 5 - Generating filename...`);
+        const filename = generateFilename(topicName, japanTime);
+        console.log(`DEBUG: Step 6 - Filename generated: ${filename}`);
+        
+        console.log(`DEBUG: Step 7 - Saving to Google Drive...`);
         await saveURLToGoogleDrive(urlSummary, filename);
+        console.log(`DEBUG: Step 8 - File saved successfully`);
         
         await message.reply(`**URL要約完了！**\n* **タイトル**: ${topicName}\n* **保存完了**: \`${filename}\``);
         await message.react('🔗');
-        console.log(`Saved URL summary: ${filename}`);
+        console.log(`✅ Saved URL summary: ${filename}`);
     } catch (error) {
-        console.error('Error processing URL:', error);
+        console.error('❌ Error processing URL:', error);
+        console.error('❌ Error stack:', error.stack);
         await message.reply(`URL処理中にエラーが発生しました: ${error.message}`);
         throw error;
     }
@@ -134,7 +150,7 @@ async function formatMessageWithAI(content, japanTime, topicName) {
                 role: "system",
                 content: `あなたはDiscordメッセージを整理して構造化されたObsidianメモに変換するアシスタントです。
 
-【重要】要約ではなく、元の情報を保持したまま整理・整形することが目的です。
+整理・整形することが目的です。
 
 以下の形式で厳密にメモを作成してください：
 
@@ -147,14 +163,14 @@ async function formatMessageWithAI(content, japanTime, topicName) {
 7. タグ（#タグ1 #タグ2 #タグ3 #タグ4 の形式で4つ前後）
 
 本文の作成ルール：
-- 元の投稿の内容を一文ずつ箇条書きに変換
-- 情報の削除や省略は一切行わない
+- 箇条書きに変換
+- 情報の削除や省略はあまり行わない
 - 自然な日本語に整形（体言止めを積極活用）
 - 機械的な「である」付与は避け、読みやすさを重視
 - 文脈に応じて「だ・である調」を自然に使用
-- 誤字脱字の修正のみ行う
-- 明らかな重複表現のみ削除
-- 文章の意味や詳細をすべて保持
+- 誤字脱字の修正は行う
+- 明らかな重複表現は削除
+- 文章の意味や詳細をできるだけ保持
 
 サンプル形式：
 # トピック名
@@ -567,6 +583,14 @@ async function generateURLTopicName(urlSummary) {
 // URL用Google Drive保存
 async function saveURLToGoogleDrive(content, filename) {
     try {
+        console.log(`DEBUG: Saving URL file to folder ID: ${GOOGLE_DRIVE_URL_FOLDER_ID}`);
+        console.log(`DEBUG: Filename: ${filename}`);
+        console.log(`DEBUG: Content length: ${content.length}`);
+        
+        if (!GOOGLE_DRIVE_URL_FOLDER_ID) {
+            throw new Error('GOOGLE_DRIVE_URL_FOLDER_ID is not set');
+        }
+        
         const fileMetadata = {
             name: filename,
             parents: [GOOGLE_DRIVE_URL_FOLDER_ID],
@@ -577,14 +601,16 @@ async function saveURLToGoogleDrive(content, filename) {
             body: content,
         };
         
+        console.log(`DEBUG: Calling Google Drive API to create file...`);
         const response = await drive.files.create({
             requestBody: fileMetadata,
             media: media,
         });
         
-        console.log(`URL file saved to Google Drive: ${filename} (ID: ${response.data.id})`);
+        console.log(`✅ URL file saved to Google Drive: ${filename} (ID: ${response.data.id})`);
     } catch (error) {
-        console.error('Error saving URL to Google Drive:', error);
+        console.error('❌ Error saving URL to Google Drive:', error);
+        console.error('Error details:', error.message);
         throw error;
     }
 }
