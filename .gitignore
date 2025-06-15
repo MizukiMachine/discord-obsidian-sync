@@ -10,5 +10,6 @@ yarn-error.log*
 .vscode/
 *.log
 work_diary.md
+work_diary_guidelines.md
 sample/
 CLAUDE.md
