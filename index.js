@@ -4,6 +4,7 @@ const OpenAI = require('openai');
 const fs = require('fs-extra');
 const path = require('path');
 const { google } = require('googleapis');
+const { ChromaClient } = require('chromadb');
 
 const client = new Client({
     intents: [
@@ -16,6 +17,10 @@ const client = new Client({
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
+
+// ChromaDB初期化
+const chromaClient = new ChromaClient();
+let vectorCollection = null;
 
 // Google Drive API設定
 const auth = new google.auth.GoogleAuth({
@@ -32,8 +37,56 @@ const GOOGLE_DRIVE_URL_FOLDER_ID = process.env.GOOGLE_DRIVE_URL_FOLDER_ID;
 // 処理済みメッセージIDを管理するSet
 const processedMessages = new Set();
 
-client.once('ready', () => {
+// ChromaDB初期化
+async function initVectorDB() {
+    try {
+        vectorCollection = await chromaClient.getOrCreateCollection({
+            name: "obsidian_memos",
+            metadata: { "hnsw:space": "cosine" }
+        });
+        console.log('ChromaDB initialized successfully');
+    } catch (error) {
+        console.error('Failed to initialize ChromaDB:', error);
+    }
+}
+
+// 既存メモをベクトルDBに移行する関数
+async function migrateExistingMemos() {
+    if (!vectorCollection) return;
+    
+    try {
+        console.log('Migrating existing memos to vector DB...');
+        const response = await drive.files.list({
+            q: `'${GOOGLE_DRIVE_FOLDER_ID}' in parents and name contains '.md'`,
+            orderBy: 'name desc',
+            pageSize: 50, // 最新50件を移行
+        });
+        
+        const files = response.data.files || [];
+        for (const file of files) {
+            try {
+                const fileResponse = await drive.files.get({
+                    fileId: file.id,
+                    alt: 'media',
+                });
+                
+                await addToVectorDB(file.name, fileResponse.data);
+                await new Promise(resolve => setTimeout(resolve, 100)); // API制限対策
+            } catch (error) {
+                console.log(`Could not migrate file ${file.name}:`, error.message);
+            }
+        }
+        console.log(`Migration completed for ${files.length} files`);
+    } catch (error) {
+        console.error('Error during migration:', error);
+    }
+}
+
+client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
+    await initVectorDB();
+    // 既存メモの移行（初回のみ実行したい場合はコメントアウト）
+    // await migrateExistingMemos();
 });
 
 // URL判定関数
@@ -94,6 +147,9 @@ async function processNormalMessage(message, japanTime) {
     const finalContent = addRelatedLinks(formattedContent, relatedNotes);
     
     await saveToGoogleDrive(finalContent, filename);
+    
+    // ベクトルDBに追加
+    await addToVectorDB(filename, formattedContent);
     
     // 詳細な応答メッセージを送信
     const responseMessage = createResponseMessage(formattedContent, filename, relatedNotes);
@@ -220,68 +276,73 @@ function generateFilename(topicName, japanTime) {
     return `${timestamp}_${topicName}.md`;
 }
 
-async function findRelatedNotes(content) {
+// テキストをベクトル化する関数
+async function getEmbedding(text) {
     try {
-        const response = await drive.files.list({
-            q: `'${GOOGLE_DRIVE_FOLDER_ID}' in parents and name contains '.md'`,
-            orderBy: 'name desc',
-            pageSize: 10,
+        const response = await openai.embeddings.create({
+            model: "text-embedding-3-small",
+            input: text.substring(0, 8000), // OpenAIの制限に合わせてトランケート
         });
-        
-        const files = response.data.files || [];
-        const relatedNotes = [];
-        
-        for (const file of files) {
-            try {
-                const fileResponse = await drive.files.get({
-                    fileId: file.id,
-                    alt: 'media',
-                });
-                
-                const fileContent = fileResponse.data;
-                const similarity = await checkSimilarity(content, fileContent);
-                
-                if (similarity > 0.3) {
-                    relatedNotes.push({
-                        filename: file.name.replace('.md', ''),
-                        similarity: similarity
-                    });
-                }
-            } catch (error) {
-                console.log(`Could not read file ${file.name}:`, error.message);
-            }
-        }
-        
-        return relatedNotes.sort((a, b) => b.similarity - a.similarity).slice(0, 3);
+        return response.data[0].embedding;
     } catch (error) {
-        console.log('No existing files found or error accessing Google Drive:', error.message);
-        return [];
+        console.error('Error creating embedding:', error);
+        return null;
     }
 }
 
-async function checkSimilarity(content1, content2) {
+// ChromaDBにベクトルを追加する関数
+async function addToVectorDB(filename, content) {
+    if (!vectorCollection) return;
+    
     try {
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-                {
-                    role: "system",
-                    content: "以下の2つのテキストの内容的関連性を0.0から1.0の数値で評価してください。数値のみを返してください。"
-                },
-                {
-                    role: "user",
-                    content: `テキスト1: ${content1.substring(0, 500)}\n\nテキスト2: ${content2.substring(0, 500)}`
-                }
-            ],
-            max_tokens: 10,
-            temperature: 0.1
+        const embedding = await getEmbedding(content);
+        if (!embedding) return;
+        
+        await vectorCollection.add({
+            ids: [filename],
+            embeddings: [embedding],
+            metadatas: [{ filename: filename, content: content.substring(0, 500) }]
+        });
+        console.log(`Added vector for: ${filename}`);
+    } catch (error) {
+        console.error('Error adding to vector DB:', error);
+    }
+}
+
+// ベクトル検索で関連メモを見つける関数
+async function findRelatedNotes(content) {
+    if (!vectorCollection) return [];
+    
+    try {
+        const embedding = await getEmbedding(content);
+        if (!embedding) return [];
+        
+        const results = await vectorCollection.query({
+            queryEmbeddings: [embedding],
+            nResults: 3,
+            include: ['metadatas', 'distances']
         });
         
-        const similarity = parseFloat(response.choices[0].message.content.trim());
-        return isNaN(similarity) ? 0 : similarity;
+        const relatedNotes = [];
+        if (results.metadatas && results.metadatas[0] && results.distances && results.distances[0]) {
+            for (let i = 0; i < results.metadatas[0].length; i++) {
+                const metadata = results.metadatas[0][i];
+                const distance = results.distances[0][i];
+                const similarity = 1 - distance; // コサイン距離を類似度に変換
+                
+                if (similarity > 0.3) { // 閾値30%以上
+                    relatedNotes.push({
+                        filename: metadata.filename.replace('.md', ''),
+                        similarity: similarity
+                    });
+                }
+            }
+        }
+        
+        return relatedNotes.sort((a, b) => b.similarity - a.similarity);
     } catch (error) {
-        console.error('Error checking similarity:', error);
-        return 0;
+        console.error('Error searching vector DB:', error);
+        return [];
     }
 }
 
