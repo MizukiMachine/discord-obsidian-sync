@@ -26,9 +26,9 @@ const auth = new google.auth.GoogleAuth({
 
 const drive = google.drive({ version: 'v3', auth });
 
+// 環境変数は関数内で直接取得するように変更（Railway.appの遅延注入対応）
 const TARGET_CHANNEL_ID = process.env.DISCORD_CHANNEL_ID;
 const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
-const GOOGLE_DRIVE_URL_FOLDER_ID = process.env.GOOGLE_DRIVE_URL_FOLDER_ID;
 
 // 処理済みメッセージIDを管理するSet
 const processedMessages = new Set();
@@ -36,9 +36,9 @@ const processedMessages = new Set();
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
     console.log(`DEBUG: Environment variables check:`);
-    console.log(`- GOOGLE_DRIVE_FOLDER_ID: ${GOOGLE_DRIVE_FOLDER_ID ? 'SET' : 'NOT SET'}`);
-    console.log(`- GOOGLE_DRIVE_URL_FOLDER_ID: ${GOOGLE_DRIVE_URL_FOLDER_ID ? 'SET' : 'NOT SET'}`);
-    console.log(`- DISCORD_CHANNEL_ID: ${TARGET_CHANNEL_ID ? 'SET' : 'NOT SET'}`);
+    console.log(`- GOOGLE_DRIVE_FOLDER_ID: ${process.env.GOOGLE_DRIVE_FOLDER_ID ? 'SET' : 'NOT SET'}`);
+    console.log(`- GOOGLE_DRIVE_URL_FOLDER_ID: ${process.env.GOOGLE_DRIVE_URL_FOLDER_ID ? 'SET' : 'NOT SET'}`);
+    console.log(`- DISCORD_CHANNEL_ID: ${process.env.DISCORD_CHANNEL_ID ? 'SET' : 'NOT SET'}`);
 });
 
 // URL判定関数
@@ -248,8 +248,13 @@ async function getAllFiles() {
             pageCount++;
             console.log(`Fetching page ${pageCount} of files...`);
             
+            const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
+            if (!FOLDER_ID) {
+                throw new Error('GOOGLE_DRIVE_FOLDER_ID is not set in environment variables');
+            }
+            
             const response = await drive.files.list({
-                q: `'${GOOGLE_DRIVE_FOLDER_ID}' in parents and name contains '.md'`,
+                q: `'${FOLDER_ID}' in parents and name contains '.md'`,
                 orderBy: 'name desc',
                 pageSize: 1000,
                 pageToken: pageToken
@@ -363,9 +368,16 @@ function addRelatedLinks(content, relatedNotes) {
 
 async function saveToGoogleDrive(content, filename) {
     try {
+        // Railway.app対応: 環境変数を関数内で直接取得
+        const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
+        
+        if (!FOLDER_ID) {
+            throw new Error('GOOGLE_DRIVE_FOLDER_ID is not set in environment variables');
+        }
+        
         const fileMetadata = {
             name: filename,
-            parents: [GOOGLE_DRIVE_FOLDER_ID],
+            parents: [FOLDER_ID],
         };
         
         const media = {
@@ -583,17 +595,20 @@ async function generateURLTopicName(urlSummary) {
 // URL用Google Drive保存
 async function saveURLToGoogleDrive(content, filename) {
     try {
-        console.log(`DEBUG: Saving URL file to folder ID: ${GOOGLE_DRIVE_URL_FOLDER_ID}`);
+        // Railway.app対応: 環境変数を関数内で直接取得
+        const URL_FOLDER_ID = process.env.GOOGLE_DRIVE_URL_FOLDER_ID;
+        
+        console.log(`DEBUG: Saving URL file to folder ID: ${URL_FOLDER_ID}`);
         console.log(`DEBUG: Filename: ${filename}`);
         console.log(`DEBUG: Content length: ${content.length}`);
         
-        if (!GOOGLE_DRIVE_URL_FOLDER_ID) {
-            throw new Error('GOOGLE_DRIVE_URL_FOLDER_ID is not set');
+        if (!URL_FOLDER_ID) {
+            throw new Error('GOOGLE_DRIVE_URL_FOLDER_ID is not set in environment variables');
         }
         
         const fileMetadata = {
             name: filename,
-            parents: [GOOGLE_DRIVE_URL_FOLDER_ID],
+            parents: [URL_FOLDER_ID],
         };
         
         const media = {
