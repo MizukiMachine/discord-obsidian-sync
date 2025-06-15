@@ -1,48 +1,130 @@
-# Discord Bot 要件定義書
+# Discord → Obsidian インポーターBot プロジェクト仕様書
 
 ## プロジェクト概要
-Discordに投稿された文章をAIが要約・整形し、Obsidianに自動保存するBot
 
-## 機能要件
+### 機能と目的
+- **Discord投稿の自動変換**: Discordチャンネルに投稿された長文（50文字以上）を監視し、AIで整理・整形してObsidianメモとして自動保存
+- **思考の記録支援**: 思いついたアイデアをDiscordに投稿するだけで、構造化された読みやすいメモが自動生成される
+- **関連性分析**: 過去のメモとの関連性を自動分析し、Obsidianリンクを生成
 
-### 1. Discord Bot基本機能
-- Discord APIを使用したメッセージ監視
-- 指定チャンネルでのメッセージ受信
-- 短いメッセージ（50文字未満）の除外
-
-### 2. AI文章整形機能
-- OpenAI API（GPT-3.5-turbo）使用（コストパフォーマンス重視）
-- メッセージの要約・構造化
-- Obsidian形式での整形
-
-### 3. ファイル保存機能
-- ファイル命名規則: `YYYYMMDD_HHMMSS_[トピックの説明].md`
-- 保存先: `C:\Users\negic\projects\obsidian\04_fromdicord_memo`
-- Markdownフォーマット
-
-### 4. 関連性分析・リンク機能
-- 既存メモとの関連性自動分析
-- 関連メモへのリンク自動生成
-- 関連度の数値表示
-
-## 技術要件
+### 使用技術スタック
+- **Node.js 20** (メインランタイム)
+- **discord.js v14** (Discord API連携)
+- **OpenAI API** (GPT-4o-mini使用、AI整形処理)
+- **Google Drive API** (ファイル保存・同期)
+- **googleapis** (Google Drive連携)
 
 ### デプロイ環境
-- GitHub連携
-- render.comでのホスティング
-- 24時間稼働
+- **render.com** (24時間稼働のクラウドホスティング)
+- **Google Drive** (ファイル保存・Obsidian同期)
 
-### 必要な環境変数
-- DISCORD_TOKEN
-- OPENAI_API_KEY  
-- OBSIDIAN_VAULT_PATH=C:\Users\negic\projects\obsidian\04_fromdicord_memo
-- DISCORD_CHANNEL_ID
+## 現在の技術構成
 
-### 依存関係
-- discord.js
-- openai
-- dotenv
-- fs-extra
+### アーキテクチャ
+```
+Discord → Bot監視 → OpenAI処理 → Google Drive保存（Obsidian Vault直接）
+```
+
+1. Discord Botがメッセージを監視
+2. 50文字以上の投稿をOpenAI APIで整理・整形
+3. Google Drive APIで直接Obsidian Vaultに保存
+4. Obsidianでリアルタイム反映（同期不要）
+
+### 使用API
+- **Discord API**: メッセージ監視、リアクション応答
+- **OpenAI API**: GPT-4o-mini（要約・整形・関連性分析）
+- **Google Drive API**: Service Account認証でファイル操作
+
+### 環境変数一覧
+```
+DISCORD_TOKEN=Discord Botトークン
+OPENAI_API_KEY=OpenAI APIキー  
+DISCORD_CHANNEL_ID=監視対象チャンネルID
+GOOGLE_SERVICE_ACCOUNT_KEY=Service AccountのJSONキー（文字列）
+GOOGLE_DRIVE_FOLDER_ID=保存先Google DriveフォルダID
+```
+
+### Google Drive連携の構成
+- **Obsidian Vault**: Google Drive上に直接配置
+- **保存先**: `Google Drive/Obsidian Vault/04_fromdicord_memo/`
+- **同期**: 不要（Obsidian自体がGoogle Drive上で動作）
+- **利点**: リアルタイム反映、設定シンプル、同期遅延なし
+
+## 実装済み機能
+
+### 動作確認済みの機能
+✅ **Discord メッセージ監視**
+- 指定チャンネルでの50文字以上メッセージ検知
+- Bot投稿の除外処理
+- 重複処理防止（メッセージID管理）
+
+✅ **AI整形処理**
+- GPT-4o-miniによる高品質な文章整理
+- **自然な日本語での整理・整形**
+  - **体言止め**を積極活用
+  - **だ・である調**は文脈に応じて自然に使用
+  - 機械的な「である」付与を避け、読みやすさを重視
+- 箇条書き形式での視認性向上
+- 情報保持重視（要約ではなく整理・整形）
+
+✅ **ファイル生成・保存**
+- 日本時間ベースのファイル名生成: `YYYY-MM-DD_HH-MM-SS_トピック名.md`
+- Google Drive APIでの確実な保存
+- Markdown形式での構造化
+
+✅ **関連性分析・リンク生成**
+- 既存メモとの類似度判定（30%以上で関連認定）
+- Obsidianリンク形式での関連メモ表示
+- 最大3件までの関連メモ表示
+
+✅ **Discord応答機能**
+- 処理完了時の詳細応答（タイトル・コンテンツ・タグ・関連メモ表示）
+- ✅/❌リアクションでの状態表示
+- 箇条書きコンテンツの7項目まで表示制限
+
+### 出力ファイル形式
+**ファイル名**: `YY-MMDD-DAY_HHMM_トピック名.md`
+
+**例**: `25-0615-Sun_1930_トピック名.md`
+
+**ファイル内容**:
+```markdown
+# トピック名
+
+YYYY年MM月DD日HH時MM分作成
+
+- [自然な日本語での内容1]
+- [自然な日本語での内容2]
+- [自然な日本語での内容3]
+- [自然な日本語での内容4]
+
+#タグ1 #タグ2 #タグ3 #タグ4
+
+[[関連メモ1]]
+[[関連メモ2]]
+```
+
+**重要**: ファイル名にはタイムスタンプ付きだが、見出しはトピック名のみ
+
+### AI文末処理の改善ルール
+1. **体言止め優先**: 「〜が存在」「〜に該当」「〜として機能」など
+2. **自然なだ・である調**: 文脈上必要な場合のみ使用
+3. **読みやすさ重視**: 機械的変換より自然な日本語を優先
+4. **一文一項目**: 箇条書きの利点を活用
+
+## 今後の課題・改善点
+
+### パフォーマンス改善
+- 大量メッセージ処理時の負荷分散
+- OpenAI API呼び出し回数の最適化
+- 関連性分析の効率化（キャッシュ機能）
+
+### 機能拡張候補
+- **多チャンネル対応**: 複数チャンネル同時監視
+- **ユーザー別フィルタ**: 特定ユーザーのメッセージのみ処理
+- **カスタムタグ**: ユーザー定義タグの自動付与
+- **画像対応**: 添付画像の内容分析・保存
+- **スケジュール機能**: 定期的な関連性再分析
 
 ## 特記事項
 ⚠️ **重要**: 作業中は作業日誌を書きながら進める（ユーザーは見ないため自由に記述可能）

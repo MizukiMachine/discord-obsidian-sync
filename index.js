@@ -59,8 +59,12 @@ client.on('messageCreate', async (message) => {
         // 日本時間を先に生成
         const japanTime = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Tokyo"}));
         
-        const formattedContent = await formatMessageWithAI(message.content, japanTime);
-        const filename = await generateFilename(formattedContent, japanTime);
+        // まずトピック名を生成
+        const topicName = await generateTopicName(message.content);
+        // ファイル名を生成
+        const filename = generateFilename(topicName, japanTime);
+        // フォーマット済みコンテンツを生成（トピック名とタイムスタンプを渡す）
+        const formattedContent = await formatMessageWithAI(message.content, japanTime, topicName);
         const relatedNotes = await findRelatedNotes(formattedContent);
         const finalContent = addRelatedLinks(formattedContent, relatedNotes);
         
@@ -80,7 +84,7 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-async function formatMessageWithAI(content, japanTime) {
+async function formatMessageWithAI(content, japanTime, topicName) {
     const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -92,40 +96,43 @@ async function formatMessageWithAI(content, japanTime) {
 
 以下の形式で厳密にメモを作成してください：
 
-1. タイトル（# で始める、ファイル名と同じ形式）
+1. タイトル（# で始める、トピック名のみ使用）
 2. 空行
 3. 作成日時（現在の日本時間を正確に記載）
 4. 空行
-5. 本文（箇条書き形式、「である」調、元の情報をすべて保持）
+5. 本文（箇条書き形式、自然な日本語、元の情報をすべて保持）
 6. 空行
 7. タグ（#タグ1 #タグ2 #タグ3 #タグ4 の形式で4つ前後）
 
 本文の作成ルール：
 - 元の投稿の内容を一文ずつ箇条書きに変換
 - 情報の削除や省略は一切行わない
-- 「ですます」→「である」調に変換
+- 自然な日本語に整形（体言止めを積極活用）
+- 機械的な「である」付与は避け、読みやすさを重視
+- 文脈に応じて「だ・である調」を自然に使用
 - 誤字脱字の修正のみ行う
 - 明らかな重複表現のみ削除
 - 文章の意味や詳細をすべて保持
 
 サンプル形式：
-# YYYY-MM-DD_HH-MM-SS_トピック名
+# トピック名
 
 YYYY年MM月DD日HH時MM分作成
 
-- [元の文章の内容1]である
-- [元の文章の内容2]である
-- [元の文章の内容3]である
-- [元の文章の内容4]である
-- [元の文章の内容5]である
-- [元の文章の内容6]である
-- [元の文章の内容7]である
+- [自然な日本語での内容1]
+- [自然な日本語での内容2]
+- [自然な日本語での内容3]
+- [自然な日本語での内容4]
+- [自然な日本語での内容5]
+- [自然な日本語での内容6]
+- [自然な日本語での内容7]
 
 #タグ1 #タグ2 #タグ3 #タグ4`
             },
             {
                 role: "user",
                 content: `現在の日本時間: ${japanTime.getFullYear()}年${String(japanTime.getMonth() + 1).padStart(2, '0')}月${String(japanTime.getDate()).padStart(2, '0')}日${String(japanTime.getHours()).padStart(2, '0')}時${String(japanTime.getMinutes()).padStart(2, '0')}分
+トピック名: ${topicName}
                 
 投稿内容: ${content}`
             }
@@ -137,7 +144,7 @@ YYYY年MM月DD日HH時MM分作成
     return response.choices[0].message.content;
 }
 
-async function generateFilename(content, japanTime) {
+async function generateTopicName(content) {
     const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -154,21 +161,26 @@ async function generateFilename(content, japanTime) {
         temperature: 0.3
     });
     
-    const topic = response.choices[0].message.content
+    return response.choices[0].message.content
         .replace(/[<>:"/\\|?*]/g, '')
         .trim();
-    
+}
+
+function generateFilename(topicName, japanTime) {
     // 渡された日本時間を使用
-    const year = japanTime.getFullYear();
+    const year = String(japanTime.getFullYear()).slice(-2); // 下2桁
     const month = String(japanTime.getMonth() + 1).padStart(2, '0');
     const day = String(japanTime.getDate()).padStart(2, '0');
     const hour = String(japanTime.getHours()).padStart(2, '0');
     const minute = String(japanTime.getMinutes()).padStart(2, '0');
-    const second = String(japanTime.getSeconds()).padStart(2, '0');
     
-    const timestamp = `${year}-${month}-${day}_${hour}-${minute}-${second}`;
+    // 英語短縮曜日
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayName = dayNames[japanTime.getDay()];
     
-    return `${timestamp}_${topic}.md`;
+    const timestamp = `${year}-${month}${day}-${dayName}_${hour}${minute}`;
+    
+    return `${timestamp}_${topicName}.md`;
 }
 
 async function findRelatedNotes(content) {
