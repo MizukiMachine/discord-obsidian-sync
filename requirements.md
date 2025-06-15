@@ -3,7 +3,7 @@
 ## プロジェクト概要
 
 ### 機能と目的
-- **Discord投稿の自動変換**: Discordチャンネルに投稿された長文（50文字以上）を監視し、AIで整理・整形してObsidianメモとして自動保存
+- **Discord投稿の自動変換**: Discordチャンネルに投稿されたメッセージを監視し、AIで整理・整形してObsidianメモとして自動保存
 - **思考の記録支援**: 思いついたアイデアをDiscordに投稿するだけで、構造化された読みやすいメモが自動生成される
 - **関連性分析**: 過去のメモとの関連性を自動分析し、Obsidianリンクを生成
 
@@ -26,7 +26,7 @@ Discord → Bot監視 → OpenAI処理 → Google Drive保存（Obsidian Vault�
 ```
 
 1. Discord Botがメッセージを監視
-2. 50文字以上の投稿をOpenAI APIで整理・整形
+2. 投稿をOpenAI APIで整理・整形（URLのみの場合は要約処理）
 3. Google Drive APIで直接Obsidian Vaultに保存
 4. Obsidianでリアルタイム反映（同期不要）
 
@@ -41,7 +41,8 @@ DISCORD_TOKEN=Discord Botトークン
 OPENAI_API_KEY=OpenAI APIキー  
 DISCORD_CHANNEL_ID=監視対象チャンネルID
 GOOGLE_SERVICE_ACCOUNT_KEY=Service AccountのJSONキー（文字列）
-GOOGLE_DRIVE_FOLDER_ID=保存先Google DriveフォルダID
+GOOGLE_DRIVE_FOLDER_ID=通常メモ保存先Google DriveフォルダID
+GOOGLE_DRIVE_URL_FOLDER_ID=URL要約保存先Google DriveフォルダID
 ```
 
 ### Google Drive連携の構成
@@ -54,9 +55,16 @@ GOOGLE_DRIVE_FOLDER_ID=保存先Google DriveフォルダID
 
 ### 動作確認済みの機能
 ✅ **Discord メッセージ監視**
-- 指定チャンネルでの50文字以上メッセージ検知
+- 指定チャンネルでの全メッセージ検知
+- URLのみ投稿の自動判定・別処理
 - Bot投稿の除外処理
 - 重複処理防止（メッセージID管理）
+
+✅ **URL専用処理機能**
+- URLのみ投稿の自動判定
+- WebFetch機能でページ内容取得・要約
+- URL専用フォルダへの保存
+- 🔗リアクションでの処理完了表示
 
 ✅ **AI整形処理**
 - GPT-4o-miniによる高品質な文章整理
@@ -83,9 +91,11 @@ GOOGLE_DRIVE_FOLDER_ID=保存先Google DriveフォルダID
 - 箇条書きコンテンツの7項目まで表示制限
 
 ### 出力ファイル形式
-**ファイル名**: `YY-MMDD-DAY_HHMM_トピック名.md`
 
-**例**: `25-0615-Sun_1930_トピック名.md`
+#### 通常メッセージ用ファイル形式
+**ファイル名**: `YYYY_MM-DD_HH-MM_トピック名.md`
+
+**例**: `2025_06-15_19-30_トピック名.md`
 
 **ファイル内容**:
 ```markdown
@@ -104,7 +114,30 @@ YYYY年MM月DD日HH時MM分作成
 [[関連メモ2]]
 ```
 
-**重要**: ファイル名にはタイムスタンプ付きだが、見出しはトピック名のみ
+#### URL専用ファイル形式
+**ファイル名**: `YYYY_MM-DD_HH-MM_ページ概要.md`
+
+**例**: `2025_06-15_20-17_OpenAI最新情報.md`
+
+**ファイル内容**:
+```markdown
+# ページ概要
+
+YYYY年MM月DD日HH時MM分作成
+
+- ページの主要内容を簡潔に要約1
+- ページの主要内容を簡潔に要約2
+- ページの主要内容を簡潔に要約3
+
+URL: https://example.com
+
+#タグ1 #タグ2 #タグ3
+```
+
+**重要**: 
+- ファイル名にはタイムスタンプ付きだが、見出しはトピック名のみ
+- URL専用は関連性分析を行わない（関連リンクなし）
+- 別フォルダ（GOOGLE_DRIVE_URL_FOLDER_ID）に保存
 
 ### AI文末処理の改善ルール
 1. **体言止め優先**: 「〜が存在」「〜に該当」「〜として機能」など

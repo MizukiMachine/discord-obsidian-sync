@@ -27,6 +27,7 @@ const drive = google.drive({ version: 'v3', auth });
 
 const TARGET_CHANNEL_ID = process.env.DISCORD_CHANNEL_ID;
 const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
+const GOOGLE_DRIVE_URL_FOLDER_ID = process.env.GOOGLE_DRIVE_URL_FOLDER_ID;
 
 // 処理済みメッセージIDを管理するSet
 const processedMessages = new Set();
@@ -35,10 +36,16 @@ client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
 });
 
+// URL判定関数
+function isURLOnly(content) {
+    const trimmed = content.trim();
+    const urlRegex = /^https?:\/\/[^\s]+$/;
+    return urlRegex.test(trimmed);
+}
+
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (TARGET_CHANNEL_ID && message.channel.id !== TARGET_CHANNEL_ID) return;
-    if (message.content.length < 50) return;
     
     // 重複処理防止 - メッセージIDで管理
     if (processedMessages.has(message.id)) {
@@ -59,23 +66,14 @@ client.on('messageCreate', async (message) => {
         // 日本時間を先に生成
         const japanTime = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Tokyo"}));
         
-        // まずトピック名を生成
-        const topicName = await generateTopicName(message.content);
-        // ファイル名を生成
-        const filename = generateFilename(topicName, japanTime);
-        // フォーマット済みコンテンツを生成（トピック名とタイムスタンプを渡す）
-        const formattedContent = await formatMessageWithAI(message.content, japanTime, topicName);
-        const relatedNotes = await findRelatedNotes(formattedContent);
-        const finalContent = addRelatedLinks(formattedContent, relatedNotes);
-        
-        await saveToGoogleDrive(finalContent, filename);
-        
-        // 詳細な応答メッセージを送信
-        const responseMessage = createResponseMessage(formattedContent, filename, relatedNotes);
-        await message.reply(responseMessage);
-        
-        await message.react('✅');
-        console.log(`Saved note: ${filename}`);
+        // URLのみの投稿かチェック
+        if (isURLOnly(message.content)) {
+            console.log('Detected URL-only message, processing as URL summary...');
+            await processURLMessage(message, japanTime);
+        } else {
+            // 通常のメッセージ処理
+            await processNormalMessage(message, japanTime);
+        }
     } catch (error) {
         console.error('Error processing message:', error);
         await message.react('❌');
@@ -83,6 +81,49 @@ client.on('messageCreate', async (message) => {
         processedMessages.delete(message.id);
     }
 });
+
+// 通常メッセージ処理
+async function processNormalMessage(message, japanTime) {
+    // まずトピック名を生成
+    const topicName = await generateTopicName(message.content);
+    // ファイル名を生成
+    const filename = generateFilename(topicName, japanTime);
+    // フォーマット済みコンテンツを生成（トピック名とタイムスタンプを渡す）
+    const formattedContent = await formatMessageWithAI(message.content, japanTime, topicName);
+    const relatedNotes = await findRelatedNotes(formattedContent);
+    const finalContent = addRelatedLinks(formattedContent, relatedNotes);
+    
+    await saveToGoogleDrive(finalContent, filename);
+    
+    // 詳細な応答メッセージを送信
+    const responseMessage = createResponseMessage(formattedContent, filename, relatedNotes);
+    await message.reply(responseMessage);
+    
+    await message.react('✅');
+    console.log(`Saved note: ${filename}`);
+}
+
+// URL メッセージ処理
+async function processURLMessage(message, japanTime) {
+    const url = message.content.trim();
+    
+    try {
+        // URL先のページ内容を取得・要約
+        const urlSummary = await summarizeURL(url, japanTime);
+        const topicName = await generateURLTopicName(urlSummary);
+        const filename = generateFilename(topicName, japanTime);
+        
+        await saveURLToGoogleDrive(urlSummary, filename);
+        
+        await message.reply(`**URL要約完了！**\n* **タイトル**: ${topicName}\n* **保存完了**: \`${filename}\``);
+        await message.react('🔗');
+        console.log(`Saved URL summary: ${filename}`);
+    } catch (error) {
+        console.error('Error processing URL:', error);
+        await message.reply(`URL処理中にエラーが発生しました: ${error.message}`);
+        throw error;
+    }
+}
 
 async function formatMessageWithAI(content, japanTime, topicName) {
     const response = await openai.chat.completions.create({
@@ -168,17 +209,13 @@ async function generateTopicName(content) {
 
 function generateFilename(topicName, japanTime) {
     // 渡された日本時間を使用
-    const year = String(japanTime.getFullYear()).slice(-2); // 下2桁
+    const year = japanTime.getFullYear();
     const month = String(japanTime.getMonth() + 1).padStart(2, '0');
     const day = String(japanTime.getDate()).padStart(2, '0');
     const hour = String(japanTime.getHours()).padStart(2, '0');
     const minute = String(japanTime.getMinutes()).padStart(2, '0');
     
-    // 英語短縮曜日
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const dayName = dayNames[japanTime.getDay()];
-    
-    const timestamp = `${year}-${month}${day}-${dayName}_${hour}${minute}`;
+    const timestamp = `${year}_${month}-${day}_${hour}-${minute}`;
     
     return `${timestamp}_${topicName}.md`;
 }
@@ -360,6 +397,149 @@ function createResponseMessage(formattedContent, filename, relatedNotes) {
 * **保存完了**: テキストmemoを \`${filename}\` として保存しました！（Obsidian連携フォルダ）`;
 
     return responseMessage;
+}
+
+// URL要約機能
+async function summarizeURL(url, japanTime) {
+    try {
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+                {
+                    role: "system",
+                    content: `あなたはURL先のページを要約するアシスタントです。WebFetch機能を使ってページ内容を取得し、以下の形式で要約を作成してください：
+
+以下の形式で厳密にメモを作成してください：
+
+1. タイトル（# で始める、ページの概要）
+2. 空行
+3. 作成日時（現在の日本時間を正確に記載）
+4. 空行
+5. 要約内容（箇条書き形式、簡潔で分かりやすく）
+6. 空行
+7. URL（元のURL）
+8. 空行
+9. タグ（#タグ1 #タグ2 #タグ3 の形式で3つ前後、内容に基づいて生成）
+
+要約ルール：
+- ページの主要な内容を3-5行の箇条書きで要約
+- 重要なポイントを漏らさず簡潔に
+- 読みやすい自然な日本語で記述
+
+サンプル形式：
+# ページの概要タイトル
+
+YYYY年MM月DD日HH時MM分作成
+
+- ページの主要内容1
+- ページの主要内容2
+- ページの主要内容3
+
+URL: ${url}
+
+#タグ1 #タグ2 #タグ3`
+                },
+                {
+                    role: "user",
+                    content: `現在の日本時間: ${japanTime.getFullYear()}年${String(japanTime.getMonth() + 1).padStart(2, '0')}月${String(japanTime.getDate()).padStart(2, '0')}日${String(japanTime.getHours()).padStart(2, '0')}時${String(japanTime.getMinutes()).padStart(2, '0')}分
+
+URL: ${url}
+
+WebFetch機能を使ってこのURLの内容を取得・要約してください。`
+                }
+            ],
+            max_tokens: 600,
+            temperature: 0.5
+        });
+        
+        return response.choices[0].message.content;
+    } catch (error) {
+        console.error('Error summarizing URL:', error);
+        // フォールバック：WebFetch使用せずに基本的な要約を生成
+        return await createBasicURLSummary(url, japanTime);
+    }
+}
+
+// WebFetch失敗時のフォールバック
+async function createBasicURLSummary(url, japanTime) {
+    const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+            {
+                role: "system",
+                content: `URLから推測して基本的な要約を作成してください。実際のページ内容は取得できませんが、URLから分かる情報で簡潔な要約を作成してください。
+
+形式：
+# URL先ページ
+
+YYYY年MM月DD日HH時MM分作成
+
+- URLから推測される内容
+
+URL: [元URL]
+
+#URL #ウェブ #保存`
+            },
+            {
+                role: "user",
+                content: `現在の日本時間: ${japanTime.getFullYear()}年${String(japanTime.getMonth() + 1).padStart(2, '0')}月${String(japanTime.getDate()).padStart(2, '0')}日${String(japanTime.getHours()).padStart(2, '0')}時${String(japanTime.getMinutes()).padStart(2, '0')}分
+
+URL: ${url}`
+            }
+        ],
+        max_tokens: 300,
+        temperature: 0.3
+    });
+    
+    return response.choices[0].message.content;
+}
+
+// URL用トピック名生成
+async function generateURLTopicName(urlSummary) {
+    const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+            {
+                role: "system",
+                content: "以下のURL要約内容から簡潔で分かりやすいトピック名を生成してください。日本語で25文字以内にしてください。ファイル名に使えない文字（<>:\"/\\|?*）は使わないでください。"
+            },
+            {
+                role: "user",
+                content: urlSummary
+            }
+        ],
+        max_tokens: 50,
+        temperature: 0.3
+    });
+    
+    return response.choices[0].message.content
+        .replace(/[<>:"/\\|?*]/g, '')
+        .trim();
+}
+
+// URL用Google Drive保存
+async function saveURLToGoogleDrive(content, filename) {
+    try {
+        const fileMetadata = {
+            name: filename,
+            parents: [GOOGLE_DRIVE_URL_FOLDER_ID],
+        };
+        
+        const media = {
+            mimeType: 'text/markdown',
+            body: content,
+        };
+        
+        const response = await drive.files.create({
+            requestBody: fileMetadata,
+            media: media,
+        });
+        
+        console.log(`URL file saved to Google Drive: ${filename} (ID: ${response.data.id})`);
+    } catch (error) {
+        console.error('Error saving URL to Google Drive:', error);
+        throw error;
+    }
 }
 
 client.login(process.env.DISCORD_TOKEN);
