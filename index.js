@@ -4,6 +4,8 @@ const OpenAI = require('openai');
 const fs = require('fs-extra');
 const path = require('path');
 const { google } = require('googleapis');
+const https = require('https');
+const http = require('http');
 
 const client = new Client({
     intents: [
@@ -474,15 +476,106 @@ function createResponseMessage(formattedContent, filename, relatedNotes) {
     return responseMessage;
 }
 
-// URL要約機能
+// URL内容取得関数
+async function fetchURLContent(url) {
+    return new Promise((resolve, reject) => {
+        try {
+            const urlObj = new URL(url);
+            const isHttps = urlObj.protocol === 'https:';
+            const client = isHttps ? https : http;
+            
+            const options = {
+                hostname: urlObj.hostname,
+                port: urlObj.port || (isHttps ? 443 : 80),
+                path: urlObj.pathname + urlObj.search,
+                method: 'GET',
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+                },
+                timeout: 10000
+            };
+            
+            const req = client.request(options, (res) => {
+                let data = '';
+                
+                // リダイレクト処理
+                if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                    return fetchURLContent(res.headers.location).then(resolve).catch(reject);
+                }
+                
+                if (res.statusCode < 200 || res.statusCode >= 300) {
+                    return reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
+                }
+                
+                res.on('data', (chunk) => {
+                    data += chunk;
+                });
+                
+                res.on('end', () => {
+                    try {
+                        // HTMLから主要なテキスト内容を抽出
+                        let textContent = data
+                            // HTMLタグを除去
+                            .replace(/<script[^>]*>.*?<\/script>/gis, '')
+                            .replace(/<style[^>]*>.*?<\/style>/gis, '')
+                            .replace(/<[^>]*>/g, ' ')
+                            // HTML エンティティをデコード
+                            .replace(/&nbsp;/g, ' ')
+                            .replace(/&amp;/g, '&')
+                            .replace(/&lt;/g, '<')
+                            .replace(/&gt;/g, '>')
+                            .replace(/&quot;/g, '"')
+                            .replace(/&#39;/g, "'")
+                            // 余分な空白を整理
+                            .replace(/\s+/g, ' ')
+                            .trim();
+                        
+                        // 長すぎる場合は最初の3000文字に制限
+                        if (textContent.length > 3000) {
+                            textContent = textContent.substring(0, 3000) + '...';
+                        }
+                        
+                        resolve(textContent);
+                    } catch (parseError) {
+                        reject(parseError);
+                    }
+                });
+            });
+            
+            req.on('error', (error) => {
+                reject(error);
+            });
+            
+            req.on('timeout', () => {
+                req.destroy();
+                reject(new Error('Request timeout'));
+            });
+            
+            req.end();
+            
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+// URL要約機能 - WebFetch機能を実際に使用
 async function summarizeURL(url, japanTime) {
     try {
+        console.log(`DEBUG: Attempting to fetch URL content: ${url}`);
+        
+        // WebFetch toolを使ってURL内容を取得
+        const pageContent = await fetchURLContent(url);
+        console.log(`DEBUG: Page content fetched, length: ${pageContent.length}`);
+        
+        // 取得した内容を要約
         const response = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
                 {
                     role: "system",
-                    content: `あなたはURL先のページを要約するアシスタントです。WebFetch機能を使ってページ内容を取得し、以下の形式で要約を作成してください：
+                    content: `あなたはWebページの内容を要約するアシスタントです。提供されたページ内容を以下の形式で要約してください：
 
 以下の形式で厳密にメモを作成してください：
 
@@ -520,7 +613,10 @@ URL: ${url}
 
 URL: ${url}
 
-WebFetch機能を使ってこのURLの内容を取得・要約してください。`
+ページ内容:
+${pageContent}
+
+上記のページ内容を要約してください。`
                 }
             ],
             max_tokens: 600,
@@ -530,7 +626,8 @@ WebFetch機能を使ってこのURLの内容を取得・要約してください
         return response.choices[0].message.content;
     } catch (error) {
         console.error('Error summarizing URL:', error);
-        // フォールバック：WebFetch使用せずに基本的な要約を生成
+        console.log('DEBUG: Falling back to basic URL summary');
+        // フォールバック：URL取得失敗時に基本的な要約を生成
         return await createBasicURLSummary(url, japanTime);
     }
 }
