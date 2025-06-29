@@ -144,50 +144,22 @@ async function processURLMessage(message, japanTime) {
     }
 }
 
+const prompts = {
+    formatMessageSystem: fs.readFileSync(path.join(__dirname, 'prompts', 'format_message_system.txt'), 'utf-8'),
+    generateTopicNameSystem: fs.readFileSync(path.join(__dirname, 'prompts', 'generate_topic_name_system.txt'), 'utf-8'),
+    extractKeywordsSystem: fs.readFileSync(path.join(__dirname, 'prompts', 'extract_keywords_system.txt'), 'utf-8'),
+    summarizeUrlSystem: fs.readFileSync(path.join(__dirname, 'prompts', 'summarize_url_system.txt'), 'utf-8'),
+    summarizeUrlFallbackSystem: fs.readFileSync(path.join(__dirname, 'prompts', 'summarize_url_fallback_system.txt'), 'utf-8'),
+    generateUrlTopicNameSystem: fs.readFileSync(path.join(__dirname, 'prompts', 'generate_url_topic_name_system.txt'), 'utf-8'),
+};
+
 async function formatMessageWithAI(content, japanTime, topicName) {
     const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
             {
                 role: "system",
-                content: `あなたはDiscordメッセージを整理して構造化されたObsidianメモに変換するアシスタントです。
-
-整理・整形することが目的です。
-
-以下の形式で厳密にメモを作成してください：
-
-1. タイトル（# で始める、トピック名のみ使用）
-2. 空行
-3. 作成日時（現在の日本時間を正確に記載）
-4. 空行
-5. 本文（箇条書き形式、自然な日本語、元の情報をすべて保持）
-6. 空行
-7. タグ（#タグ1 #タグ2 #タグ3 #タグ4 の形式で4つ前後）
-
-本文の作成ルール：
-- 箇条書きに変換
-- 情報の削除や省略はあまり行わない
-- 自然な日本語に整形（体言止めを積極活用）
-- 機械的な「である」付与は避け、読みやすさを重視
-- 文脈に応じて「だ・である調」を自然に使用
-- 誤字脱字の修正は行う
-- 明らかな重複表現は削除
-- 文章の意味や詳細をできるだけ保持
-
-サンプル形式：
-# トピック名
-
-YYYY年MM月DD日HH時MM分作成
-
-- [自然な日本語での内容1]
-- [自然な日本語での内容2]
-- [自然な日本語での内容3]
-- [自然な日本語での内容4]
-- [自然な日本語での内容5]
-- [自然な日本語での内容6]
-- [自然な日本語での内容7]
-
-#タグ1 #タグ2 #タグ3 #タグ4`
+                content: prompts.formatMessageSystem,
             },
             {
                 role: "user",
@@ -210,7 +182,7 @@ async function generateTopicName(content) {
         messages: [
             {
                 role: "system",
-                content: "以下の内容から簡潔で分かりやすいトピック名を生成してください。日本語で25文字以内にしてください。ファイル名に使えない文字（<>:\"/\\|?*）は使わないでください。"
+                content: prompts.generateTopicNameSystem,
             },
             {
                 role: "user",
@@ -287,7 +259,7 @@ async function extractKeywords(content) {
             messages: [
                 {
                     role: "system",
-                    content: "以下のテキストから重要なキーワードを5-8個抽出してください。カンマ区切りで出力してください。検索に使いやすい単語を優先してください。"
+                    content: prompts.extractKeywordsSystem,
                 },
                 {
                     role: "user",
@@ -575,37 +547,7 @@ async function summarizeURL(url, japanTime) {
             messages: [
                 {
                     role: "system",
-                    content: `あなたはWebページの内容を要約するアシスタントです。提供されたページ内容を以下の形式で要約してください：
-
-以下の形式で厳密にメモを作成してください：
-
-1. タイトル（# で始める、ページの概要）
-2. 空行
-3. 作成日時（現在の日本時間を正確に記載）
-4. 空行
-5. 要約内容（箇条書き形式、簡潔で分かりやすく）
-6. 空行
-7. URL（元のURL）
-8. 空行
-9. タグ（#タグ1 #タグ2 #タグ3 の形式で3つ前後、内容に基づいて生成）
-
-要約ルール：
-- ページの主要な内容を3-5行の箇条書きで要約
-- 重要なポイントを漏らさず簡潔に
-- 読みやすい自然な日本語で記述
-
-サンプル形式：
-# ページの概要タイトル
-
-YYYY年MM月DD日HH時MM分作成
-
-- ページの主要内容1
-- ページの主要内容2
-- ページの主要内容3
-
-URL: ${url}
-
-#タグ1 #タグ2 #タグ3`
+                    content: prompts.summarizeUrlSystem.replace('${url}', url),
                 },
                 {
                     role: "user",
@@ -639,18 +581,7 @@ async function createBasicURLSummary(url, japanTime) {
         messages: [
             {
                 role: "system",
-                content: `URLから推測して基本的な要約を作成してください。実際のページ内容は取得できませんが、URLから分かる情報で簡潔な要約を作成してください。
-
-形式：
-# URL先ページ
-
-YYYY年MM月DD日HH時MM分作成
-
-- URLから推測される内容
-
-URL: [元URL]
-
-#URL #ウェブ #保存`
+                content: prompts.summarizeUrlFallbackSystem,
             },
             {
                 role: "user",
@@ -673,7 +604,7 @@ async function generateURLTopicName(urlSummary) {
         messages: [
             {
                 role: "system",
-                content: "以下のURL要約内容から簡潔で分かりやすいトピック名を生成してください。日本語で25文字以内にしてください。ファイル名に使えない文字（<>:\"/\\|?*）は使わないでください。"
+                content: prompts.generateUrlTopicNameSystem,
             },
             {
                 role: "user",
