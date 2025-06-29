@@ -15,7 +15,7 @@
 - **googleapis** (Google Drive連携)
 
 ### デプロイ環境
-- **render.com** (24時間稼働のクラウドホスティング)
+- **railway.app** (24時間稼働のクラウドホスティング)
 - **Google Drive** (ファイル保存・Obsidian同期)
 
 ## 現在の技術構成

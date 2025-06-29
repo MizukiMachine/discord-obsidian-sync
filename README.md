@@ -23,7 +23,7 @@ GOOGLE_DRIVE_FOLDER_ID=Obsidian内の通常メモ保存先フォルダID
 GOOGLE_DRIVE_URL_FOLDER_ID=Obsidian内のURL要約保存先フォルダID
 ```
 
-### 3. render.comにデプロイ
+### 3. railway.appにデプロイ
 上記の環境変数を設定してデプロイする
 
 ## 使い方
