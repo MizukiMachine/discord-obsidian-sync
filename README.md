@@ -56,6 +56,16 @@ GOOGLE_DRIVE_URL_FOLDER_ID=Obsidian内のURL要約保存先フォルダID
 [[関連するメモ]]
 ```
 
+## 📁 現在の構成
+
+```
+index.js (117行)           # メインアプリケーション
+├── DiscordService         # Discord処理
+├── OpenAIService         # AI処理  
+├── DriveService          # Google Drive処理
+└── ユーティリティ         # 共通機能
+```
+
 ## 注意点
 - OpenAI APIの料金がかかります
 - Google Drive上でObsidianを動かす必要があります
