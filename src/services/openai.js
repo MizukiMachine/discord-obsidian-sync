@@ -25,6 +25,13 @@ class OpenAIService {
     }
 
     async formatMessageWithAI(content, japanTime, topicName) {
+        const userMessage = [
+            `現在の日本時間: ${this.formatJapanTime(japanTime)}`,
+            `トピック名: ${topicName}`,
+            '',
+            `投稿内容: ${content}`
+        ].join('\n');
+
         const response = await this.client.chat.completions.create({
             model: config.openaiModel,
             messages: [
@@ -34,10 +41,7 @@ class OpenAIService {
                 },
                 {
                     role: "user",
-                    content: `現在の日本時間: ${this.formatJapanTime(japanTime)}
-トピック名: ${topicName}
-                
-投稿内容: ${content}`
+                    content: userMessage
                 }
             ],
             max_tokens: 800,
@@ -96,6 +100,17 @@ class OpenAIService {
     }
 
     async summarizeURL(url, pageContent, japanTime) {
+        const userMessage = [
+            `現在の日本時間: ${this.formatJapanTime(japanTime)}`,
+            '',
+            `URL: ${url}`,
+            '',
+            'ページ内容:',
+            pageContent,
+            '',
+            '上記のページ内容を要約してください。'
+        ].join('\n');
+
         const response = await this.client.chat.completions.create({
             model: config.openaiModel,
             messages: [
@@ -105,14 +120,7 @@ class OpenAIService {
                 },
                 {
                     role: "user",
-                    content: `現在の日本時間: ${this.formatJapanTime(japanTime)}
-
-URL: ${url}
-
-ページ内容:
-${pageContent}
-
-上記のページ内容を要約してください。`
+                    content: userMessage
                 }
             ],
             max_tokens: 600,
@@ -123,6 +131,12 @@ ${pageContent}
     }
 
     async createBasicURLSummary(url, japanTime) {
+        const userMessage = [
+            `現在の日本時間: ${this.formatJapanTime(japanTime)}`,
+            '',
+            `URL: ${url}`
+        ].join('\n');
+
         const response = await this.client.chat.completions.create({
             model: config.openaiModel,
             messages: [
@@ -132,9 +146,7 @@ ${pageContent}
                 },
                 {
                     role: "user",
-                    content: `現在の日本時間: ${this.formatJapanTime(japanTime)}
-
-URL: ${url}`
+                    content: userMessage
                 }
             ],
             max_tokens: 300,
