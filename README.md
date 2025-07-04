@@ -1,6 +1,7 @@
 # Discord → Obsidian インポーターBot
 
-Discordでだらだら書いた投稿が、AI整形されてObsidianのメモになって保存
+Discordでだらだら書いた投稿が、AI整形されてObsidianのメモになって保存  
+※ requirements.md が仕様書
 
 ## してくれること
 - Discordの投稿を監視・整理してObsidianに保存
