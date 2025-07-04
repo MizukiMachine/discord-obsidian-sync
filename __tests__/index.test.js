@@ -1,9 +1,6 @@
-// 既存のindex.js の動作を保証するテスト
-
 const fs = require('fs-extra');
 const path = require('path');
 
-// 実際のindex.jsをrequireする前にモックを設定
 jest.mock('discord.js', () => ({
   Client: jest.fn(() => ({
     once: jest.fn(),
@@ -64,12 +61,10 @@ describe('Discord-Obsidian Bot - 既存機能テスト', () => {
       reply: jest.fn(() => Promise.resolve())
     };
 
-    // コンソールログをクリア
     jest.clearAllMocks();
   });
 
   test('URL判定関数が正しく動作する', () => {
-    // 既存のindex.jsからURL判定ロジックを抽出してテスト
     function isURLOnly(content) {
       const trimmed = content.trim();
       const urlRegex = /^https?:\/\/[^\s]+$/;
@@ -85,7 +80,6 @@ describe('Discord-Obsidian Bot - 既存機能テスト', () => {
   });
 
   test('ファイル名生成が正しく動作する', () => {
-    // 既存のindex.jsからファイル名生成ロジックを抽出してテスト
     function generateFilename(topicName, japanTime) {
       const year = japanTime.getFullYear();
       const month = String(japanTime.getMonth() + 1).padStart(2, '0');
@@ -141,7 +135,6 @@ describe('Discord-Obsidian Bot - 既存機能テスト', () => {
   });
 
   test('関連リンク追加機能が正しく動作する', () => {
-    // 既存のindex.jsから関連リンク追加ロジックを抽出してテスト
     function addRelatedLinks(content, relatedNotes) {
       if (relatedNotes.length === 0) {
         return content;
@@ -172,7 +165,6 @@ describe('Discord-Obsidian Bot - 既存機能テスト', () => {
   });
 
   test('HTMLテキスト抽出が正しく動作する', () => {
-    // 既存のindex.jsのHTMLテキスト抽出ロジックをテスト
     function extractTextFromHTML(html) {
       let textContent = html
         .replace(/<script[^>]*>.*?<\/script>/gis, '')

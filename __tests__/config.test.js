@@ -23,7 +23,6 @@ describe('設定管理モジュールテスト', () => {
 
 
   test('必須環境変数検証が動作する', () => {
-    // このテストは既存の設定オブジェクトでは実行できないため、
     // 新しいConfigインスタンスを作成して検証する必要がある
     // 実際の使用では起動時に1回だけ検証される
     expect(Config.discordToken).toBeDefined();
@@ -37,7 +36,6 @@ describe('設定管理モジュールテスト', () => {
     Config.logConfigStatus();
     
     expect(consoleSpy).toHaveBeenCalledWith('Configuration Status:');
-    // 環境変数が設定されていることを確認（SET/NOT SETどちらでも正常動作）
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('DISCORD_TOKEN:'));
     
     consoleSpy.mockRestore();
@@ -47,7 +45,7 @@ describe('設定管理モジュールテスト', () => {
 describe('設定管理モジュール - エラーケース', () => {
   
   beforeEach(() => {
-    // 各テスト前にモジュールキャッシュをクリア
+    // 各テスト前にキャッシュをクリア
     delete require.cache[require.resolve('../src/config')];
   });
 
