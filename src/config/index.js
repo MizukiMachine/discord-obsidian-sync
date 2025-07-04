@@ -20,7 +20,7 @@ class Config {
     }
 
     get openaiModel() {
-        return 'gpt-4o-mini';
+        return process.env.OPENAI_MODEL || 'gpt-4o-mini';
     }
 
     // Google Drive設定
@@ -46,7 +46,7 @@ class Config {
 
     // アプリケーション設定
     get processedMessagesLimit() {
-        return 1000;
+        return 50;
     }
 
     get maxContentLength() {
@@ -89,6 +89,7 @@ class Config {
         console.log(`- DISCORD_TOKEN: ${this.discordToken ? 'SET' : 'NOT SET'}`);
         console.log(`- DISCORD_CHANNEL_ID: ${this.discordChannelId ? 'SET' : 'NOT SET'}`);
         console.log(`- OPENAI_API_KEY: ${this.openaiApiKey ? 'SET' : 'NOT SET'}`);
+        console.log(`- OPENAI_MODEL: ${this.openaiModel}`);
         console.log(`- GOOGLE_DRIVE_FOLDER_ID: ${this.googleDriveFolderId ? 'SET' : 'NOT SET'}`);
         console.log(`- GOOGLE_DRIVE_URL_FOLDER_ID: ${this.googleDriveUrlFolderId ? 'SET' : 'NOT SET'}`);
         console.log(`- Environment: ${process.env.NODE_ENV || 'undefined'}`);

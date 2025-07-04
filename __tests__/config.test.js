@@ -16,7 +16,7 @@ describe('設定管理モジュールテスト', () => {
 
   test('デフォルト値が正しく設定される', () => {
     expect(Config.openaiModel).toBe('gpt-4o-mini');
-    expect(Config.processedMessagesLimit).toBe(1000);
+    expect(Config.processedMessagesLimit).toBe(50);
     expect(Config.maxContentLength).toBe(3000);
     expect(Config.httpTimeout).toBe(10000);
   });
