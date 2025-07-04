@@ -21,22 +21,6 @@ describe('設定管理モジュールテスト', () => {
     expect(Config.httpTimeout).toBe(10000);
   });
 
-  test('環境判定が正しく動作する', () => {
-    // テスト環境での動作確認
-    expect(Config.isDevelopment).toBe(false);
-    expect(Config.isProduction).toBe(false);
-    
-    // NODE_ENV=test が設定されている場合
-    const originalNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'development';
-    
-    // 新しいインスタンスを作成して確認
-    const devConfig = require('../src/config');
-    expect(devConfig.isDevelopment).toBe(true);
-    
-    // 環境変数を復元
-    process.env.NODE_ENV = originalNodeEnv;
-  });
 
   test('必須環境変数検証が動作する', () => {
     // このテストは既存の設定オブジェクトでは実行できないため、

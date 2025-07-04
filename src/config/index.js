@@ -5,7 +5,6 @@ class Config {
         this.validateRequiredEnvVars();
     }
 
-    // Discord設定
     get discordToken() {
         return process.env.DISCORD_TOKEN;
     }
@@ -14,7 +13,6 @@ class Config {
         return process.env.DISCORD_CHANNEL_ID;
     }
 
-    // OpenAI設定
     get openaiApiKey() {
         return process.env.OPENAI_API_KEY;
     }
@@ -23,12 +21,12 @@ class Config {
         return process.env.OPENAI_MODEL || 'gpt-4o-mini';
     }
 
-    // Google Drive設定
     get googleServiceAccountKey() {
         return process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
     }
 
     get googleServiceAccountCredentials() {
+        // これだけパースするからハンドリング
         try {
             return JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
         } catch (error) {
@@ -44,9 +42,8 @@ class Config {
         return process.env.GOOGLE_DRIVE_URL_FOLDER_ID;
     }
 
-    // アプリケーション設定
     get processedMessagesLimit() {
-        return 50;
+        return 50; // 処理済みメッセージIDの記録上限。通信エラーとかで重複ならないように。
     }
 
     get maxContentLength() {
@@ -57,16 +54,8 @@ class Config {
         return 10000;
     }
 
-    // 開発環境判定
-    get isDevelopment() {
-        return process.env.NODE_ENV === 'development';
-    }
 
-    get isProduction() {
-        return process.env.NODE_ENV === 'production';
-    }
-
-    // 必須環境変数の検証
+    // 環境変数の存在チェック
     validateRequiredEnvVars() {
         const required = [
             'DISCORD_TOKEN',
