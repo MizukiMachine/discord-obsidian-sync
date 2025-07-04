@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const config = require('../config');
+const { MessageFormatter } = require('../config/messages');
 
 class DiscordService {
     constructor() {
@@ -87,6 +88,22 @@ class DiscordService {
     createResponseMessage(formattedContent, filename, relatedNotes) {
         console.log('DEBUG - formattedContent:', formattedContent);
         
+        const parsedData = this.parseFormattedContent(formattedContent);
+        
+        console.log('DEBUG - extracted title:', parsedData.title);
+        console.log('DEBUG - extracted content:', parsedData.content);
+        console.log('DEBUG - extracted tags:', parsedData.tags);
+        
+        return MessageFormatter.formatProcessComplete({
+            title: parsedData.title,
+            content: parsedData.content,
+            tags: parsedData.tags,
+            relatedNotes: relatedNotes,
+            filename: filename
+        });
+    }
+
+    parseFormattedContent(formattedContent) {
         const lines = formattedContent.split('\n').map(line => line.trim()).filter(line => line);
         
         let title = '';
@@ -133,29 +150,11 @@ class DiscordService {
             }
         }
         
-        console.log('DEBUG - extracted title:', title);
-        console.log('DEBUG - extracted content:', content);
-        console.log('DEBUG - extracted tags:', tags);
-        
-        // 関連タイトル情報
-        let relatedInfo = '';
-        if (relatedNotes.length > 0) {
-            const relatedTitles = relatedNotes.map(note => note.filename).join(', ');
-            relatedInfo = `\n* **関連メモ**: ${relatedTitles}`;
-        }
-        
-        const responseMessage = `**Bot処理完了！**
-
-* **タイトル**: ${title}
-* **コンテンツ**: ${content}
-* **タグ**: ${tags}${relatedInfo}
-* **保存完了**: テキストmemoを \`${filename}\` として保存しました！（Obsidian連携フォルダ）`;
-
-        return responseMessage;
+        return { title, content, tags };
     }
 
     createURLResponseMessage(topicName, filename) {
-        return `**URL要約完了！**\n* **タイトル**: ${topicName}\n* **保存完了**: \`${filename}\``;
+        return MessageFormatter.formatURLComplete(topicName, filename);
     }
 }
 

@@ -3,6 +3,7 @@ const OpenAIService = require('./src/services/openai');
 const DriveService = require('./src/services/drive');
 const HttpService = require('./src/utils/http');
 const FilenameUtils = require('./src/utils/filename');
+const { MessageFormatter } = require('./src/config/messages');
 
 class DiscordObsidianBot {
     constructor() {
@@ -89,7 +90,8 @@ class DiscordObsidianBot {
         } catch (error) {
             console.error('❌ Error processing URL:', error);
             console.error('❌ Error stack:', error.stack);
-            await this.discordService.reply(message, `URL処理中にエラーが発生しました: ${error.message}`);
+            const errorMessage = MessageFormatter.formatError('URL_PROCESSING', error.message);
+            await this.discordService.reply(message, errorMessage);
             throw error;
         }
     }
