@@ -1,5 +1,3 @@
-// テスト環境のセットアップ
-
 // 環境変数のモック設定
 process.env.NODE_ENV = 'test';
 process.env.DISCORD_TOKEN = 'test_discord_token';
