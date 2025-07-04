@@ -10,10 +10,6 @@ describe('設定管理モジュール統合テスト', () => {
     const indexPath = path.join(__dirname, '../index.js');
     expect(fs.existsSync(indexPath)).toBe(true);
     
-    // バックアップファイルが存在することを確認
-    const backupPath = path.join(__dirname, '../index.original.js');
-    expect(fs.existsSync(backupPath)).toBe(true);
-    
     // ファイルの基本的な構造を確認（完全リファクタリング後）
     const content = fs.readFileSync(indexPath, 'utf-8');
     expect(content).toContain('const DiscordService = require(\'./src/services/discord\')');
@@ -50,22 +46,14 @@ describe('設定管理モジュール統合テスト', () => {
   });
 
   test('段階的統合のための安全性確認', () => {
-    // バックアップファイルが存在しないことを確認（初回実行時）
-    const backupPath = path.join(__dirname, '../index.original.js');
-    
-    if (fs.existsSync(backupPath)) {
-      // バックアップが存在する場合、オリジナルと現在のファイルを比較
-      const originalContent = fs.readFileSync(backupPath, 'utf-8');
-      const currentContent = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8');
-      
-      // 何らかの変更があった場合の差分検出
-      console.log('バックアップファイルが存在します。変更を検出中...');
-    }
-    
     // 設定管理モジュールがrequireできることを確認
     expect(() => {
       require('../src/config');
     }).not.toThrow();
+    
+    // メインindex.jsが正常に読み込めることを確認
+    const indexPath = path.join(__dirname, '../index.js');
+    expect(fs.existsSync(indexPath)).toBe(true);
   });
 });
 

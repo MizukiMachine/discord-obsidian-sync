@@ -1,22 +1,25 @@
 {
   "name": "discord-obsidian-bot",
   "version": "1.0.0",
-  "description": "",
+  "description": "Discord to Obsidian sync bot with AI formatting",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "test": "jest",
     "test:watch": "jest --watch"
   },
-  "keywords": [],
+  "keywords": ["discord", "obsidian", "ai", "bot", "automation"],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@octokit/rest": "^22.0.0",
-    "discord.js": "^14.19.3",
-    "dotenv": "^16.5.0",
+    "discord.js": "^14.21.0",
+    "dotenv": "^17.0.0",
     "fs-extra": "^11.3.0",
     "googleapis": "^150.0.1",
-    "openai": "^5.3.0"
+    "openai": "^5.8.2"
+  },
+  "devDependencies": {
+    "jest": "^30.0.3"
   }
 }
