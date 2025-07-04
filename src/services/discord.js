@@ -28,13 +28,12 @@ class DiscordService {
 
     onMessage(callback) {
         this.client.on('messageCreate', async (message) => {
-            // Bot自身のメッセージは無視
+            // BOTが返信してくるから、BOT自身のメッセージは無視
             if (message.author.bot) return;
             
-            // 指定チャンネル以外は無視
             if (config.discordChannelId && message.channel.id !== config.discordChannelId) return;
             
-            // 重複処理防止
+            // 通信エラーとかでの重複処理防止
             if (this.processedMessages.has(message.id)) {
                 console.log(`Already processed message: ${message.id}`);
                 return;
@@ -49,14 +48,14 @@ class DiscordService {
             } catch (error) {
                 console.error('Error processing message:', error);
                 await this.reactError(message);
-                // エラー時はSetからIDを削除（再試行可能にする）
+                // エラー時はSetからIDを削除。再処理不可能にしたくない
                 this.processedMessages.delete(message.id);
             }
         });
     }
 
     limitProcessedMessagesSize() {
-        // Setのサイズを制限（メモリリーク防止）
+        // Setのサイズを制限（メモリリーク防止）。configで適当に50くらいに設定している
         if (this.processedMessages.size > config.processedMessagesLimit) {
             const firstEntry = this.processedMessages.values().next().value;
             this.processedMessages.delete(firstEntry);
@@ -88,7 +87,6 @@ class DiscordService {
     createResponseMessage(formattedContent, filename, relatedNotes) {
         console.log('DEBUG - formattedContent:', formattedContent);
         
-        // フォーマットされたコンテンツからタイトル、本文、タグを抽出
         const lines = formattedContent.split('\n').map(line => line.trim()).filter(line => line);
         
         let title = '';
