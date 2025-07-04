@@ -84,31 +84,28 @@ class DriveService {
 
     async findRelatedNotes(content, extractKeywords) {
         try {
-            // 1. 新メモからキーワード抽出
+            // 新規メモからキーワード抽出
             const keywords = await extractKeywords(content);
             if (keywords.length === 0) return [];
             
             console.log('Extracted keywords:', keywords);
             
-            // 2. 既存ファイル一覧を取得
             const files = await this.getAllFiles();
             
             console.log(`Checking ${files.length} existing files for keyword matches`);
             const relatedNotes = [];
             
-            // 3. ファイル名とメタデータでキーワードマッチング
+            // キーワードマッチング
             for (const file of files) {
                 let matchCount = 0;
                 const fileName = file.name.toLowerCase();
                 
-                // ファイル名でキーワードマッチング
                 for (const keyword of keywords) {
                     if (fileName.includes(keyword.toLowerCase())) {
                         matchCount++;
                     }
                 }
                 
-                // マッチしたキーワードがあれば関連メモとして追加
                 if (matchCount > 0) {
                     const similarity = matchCount / keywords.length;
                     relatedNotes.push({
@@ -119,7 +116,7 @@ class DriveService {
                 }
             }
             
-            // 4. 類似度でソートして上位3件を返す
+            // 類似度でソート
             return relatedNotes
                 .sort((a, b) => b.similarity - a.similarity)
                 .slice(0, 3);

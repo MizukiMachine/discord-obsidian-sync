@@ -32,28 +32,21 @@ class DiscordObsidianBot {
     }
 
     async processNormalMessage(message, japanTime) {
-        // トピック名を生成
         const topicName = await this.openaiService.generateTopicName(message.content);
         
-        // ファイル名を生成
         const filename = FilenameUtils.generateFilename(topicName, japanTime);
         
-        // フォーマット済みコンテンツを生成
         const formattedContent = await this.openaiService.formatMessageWithAI(message.content, japanTime, topicName);
         
-        // 関連メモを検索
         const relatedNotes = await this.driveService.findRelatedNotes(
             formattedContent, 
             this.openaiService.extractKeywords.bind(this.openaiService)
         );
         
-        // 関連リンクを追加
         const finalContent = FilenameUtils.addRelatedLinks(formattedContent, relatedNotes);
         
-        // Google Driveに保存
         await this.driveService.saveToGoogleDrive(finalContent, filename);
         
-        // 応答メッセージを作成して送信
         const responseMessage = this.discordService.createResponseMessage(formattedContent, filename, relatedNotes);
         await this.discordService.reply(message, responseMessage);
         
@@ -100,21 +93,19 @@ class DiscordObsidianBot {
         try {
             console.log(`DEBUG: Attempting to fetch URL content: ${url}`);
             
-            // URL内容を取得
             const pageContent = await HttpService.fetchURLContent(url);
             console.log(`DEBUG: Page content fetched, length: ${pageContent.length}`);
             
-            // 取得した内容を要約
             return await this.openaiService.summarizeURL(url, pageContent, japanTime);
         } catch (error) {
             console.error('Error summarizing URL:', error);
             console.log('DEBUG: Falling back to basic URL summary');
-            // フォールバック：URL取得失敗時に基本的な要約を生成
+            // フォールバック。URL取得失敗時に基本的な要約を生成
             return await this.openaiService.createBasicURLSummary(url, japanTime);
         }
     }
 }
 
-// アプリケーション起動
+// エントリーぽいんと
 const bot = new DiscordObsidianBot();
 bot.start().catch(console.error);
